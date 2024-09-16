@@ -1,0 +1,15 @@
+:9002 {
+	reverse_proxy /* {
+		to tempo:3200
+	}
+
+	reverse_proxy /otlp_grpc/* {
+		rewrite /v1/traces
+		to tempo:4317
+	}
+
+	reverse_proxy /otlp_http/v1/traces {
+		rewrite /v1/traces
+		to tempo:4318
+	}
+}

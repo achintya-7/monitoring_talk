@@ -1,0 +1,113 @@
+logging {
+	level = "debug"
+}
+
+faro.receiver "default" {
+	server {
+		listen_address       = "0.0.0.0"
+		listen_port          = 8027
+		cors_allowed_origins = ["*"]
+		api_key              = env("ALLOY_API_KEY")
+	}
+
+	sourcemaps {
+		download = false
+	}
+
+	output {
+		logs   = [loki.process.faro.receiver]
+		traces = [otelcol.exporter.otlphttp.tempo.input]
+	}
+}
+
+otelcol.auth.bearer "otlp_token" {
+	token = env("ALLOY_API_KEY")
+}
+
+otelcol.receiver.otlp "logging" {
+	grpc {
+		include_metadata = true
+	}
+
+	http {
+		include_metadata = true
+
+		logs_url_path    = "/otlp_http/v1/logs"
+		metrics_url_path = "/otlp_http/v1/metrics"
+		traces_url_path  = "/otlp_http/v1/traces"
+	}
+
+	output {
+		metrics = [otelcol.exporter.prometheus.mimir.input]
+		logs    = [otelcol.exporter.loki.loki.input]
+		traces  = [otelcol.exporter.otlphttp.tempo.input]
+	}
+}
+
+otelcol.exporter.prometheus "mimir" {
+	forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+otelcol.exporter.loki "loki" {
+	forward_to = [loki.process.logging.receiver]
+}
+
+loki.process "faro" {
+	forward_to = [loki.write.loki.receiver]
+}
+
+loki.process "logging" {
+	forward_to = [loki.write.loki.receiver]
+
+	stage.json {
+		expressions = {body = "", severity = "", resources = "", zerolog_attributes = "attributes", zerolog_resources = "resources", zerolog_instrumentation_scope = "instrumentation_scope"}
+	}
+
+	stage.labels {
+		values = {level = "severity", caller = "", correlation_id = ""}
+	}
+
+	stage.structured_metadata {
+		values = {attributes = "zerolog_attributes", resource = "zerolog_resources", instrumentation = "zerolog_instrumentation_scope"}
+	}
+
+	stage.output {
+		source = "body"
+	}
+
+	stage.timestamp {
+		source = "timestamp"
+		format = "Unix"
+	}
+}
+
+prometheus.remote_write "mimir" {
+	endpoint {
+		url = format("%s/api/v1/push", env("MIMIR_URI"))
+
+		queue_config { }
+
+		metadata_config { }
+	}
+}
+
+loki.write "loki" {
+	endpoint {
+		url = format("%s/loki/api/v1/push", env("LOKI_URI"))
+	}
+	external_labels = {}
+}
+
+otelcol.exporter.otlphttp "tempo" {
+	retry_on_failure {
+		max_elapsed_time = "1m0s"
+	}
+
+	client {
+		endpoint = format("%s/otlp_http", env("TEMPO_URI"))
+
+		tls {
+			insecure = true
+		}
+	}
+}

@@ -1,0 +1,8 @@
+:9003 {
+    log
+
+    handle /loki/* {
+        uri strip_prefix /loki
+        reverse_proxy loki:3100
+    }   
+}

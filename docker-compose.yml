@@ -1,0 +1,70 @@
+name: monitoring
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres-monitoring
+    env_file:
+      - './.env'
+    volumes:
+      - ./infra/postgres/data:/var/lib/postgresql/data 
+
+  alloy:
+    build:
+      context: .
+      dockerfile: ./infra/alloy/alloy.Dockerfile
+    container_name: alloy
+    volumes:
+      - ./infra/alloy/config/config.alloy:/etc/alloy/config.alloy
+    env_file:
+      - './.env'
+
+  alloy-sidecar-caddy:
+    build:
+      context: .
+      dockerfile: ./infra/alloy-sidecar-caddy-dev/alloy-sidecar-caddy-dev.Dockerfile
+    container_name: alloy-sidecar-caddy
+    env_file:
+      - './.env'
+    ports: ['9001:9001']
+
+  grafana:
+    build:
+      context: .
+      dockerfile: ./infra/grafana/grafana.Dockerfile
+    container_name: grafana
+    env_file:
+      - './.env'
+    ports: ['3000:3000']
+
+  loki:
+    build:
+      context: .
+      dockerfile: ./infra/loki/loki.test.Dockerfile
+    container_name: loki
+    env_file:
+      - './.env'
+
+  mimir:
+    build:
+      context: .
+      dockerfile: ./infra/mimir/mimir.Dockerfile
+    container_name: mimir
+    env_file:
+      - './.env'
+
+  tempo:
+    build:
+      context: .
+      dockerfile: ./infra/tempo/tempo.Dockerfile
+    container_name: tempo
+    env_file:
+      - './.env'
+
+  tempo-sidecar-caddy:
+    build:
+      context: .
+      dockerfile: ./infra/tempo-sidecar-caddy-dev/tempo-sidecar-caddy-dev.Dockerfile
+    container_name: tempo-sidecar-caddy
+    env_file:
+      - './.env'
