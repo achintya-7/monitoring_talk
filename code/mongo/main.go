@@ -1,12 +1,10 @@
-package servers
+package main
 
 import (
 	"context"
 	"encoding/json"
 	"io"
 	"log"
-	"monitoring-talk/logger"
-	"monitoring-talk/telemetry"
 	"net/http"
 	"strings"
 
@@ -17,24 +15,42 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
+const (
+	// Alloy
+	ALLOY_ENDPOINT = "localhost:9001"
+	ALLOY_TOKEN    = "G7kLw9xYtQpZrV3mN2sHjXcB8aWfUe5K"
+
+	// Services
+	MONGO_SERVICE_NAME = "MONGO_SERVICE"
+
+	// Mongo
+	MONGO_URL = "mongodb://localhost:27017"
+	USER_DATABASE    = "users"
+	USERS_COLLECTION = "users"
+)
+
+type InsertUserRequest struct {
+	Username string `json:"username" binding:"required"`
+}
+
 var (
-	mongoLogger      logger.CustomLogger
+	mongoLogger      *CustomLogger
 	client           *mongo.Client
 	usersCollection  *mongo.Collection
-	mongoOtelContext *telemetry.OtelContext
+	mongoOtelContext *OtelContext
 )
 
 func init() {
 	var err error
 
 	// init otel
-	mongoOtelContext, err = telemetry.NewOtelContext(ALLOY_ENDPOINT, ALLOY_TOKEN, MONGO_SERVICE_NAME)
+	mongoOtelContext, err = NewOtelContext(ALLOY_ENDPOINT, ALLOY_TOKEN, MONGO_SERVICE_NAME)
 	if err != nil {
 		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
 	}
 
 	// init logger
-	mongoLogger = logger.NewOtelLogger(mongoOtelContext)
+	mongoLogger = NewOtelLogger(mongoOtelContext)
 	mongoLogger.Info(context.Background(), "Initializing mongo server")
 
 	opts := options.Client()
@@ -59,7 +75,7 @@ func init() {
 	mongoLogger.Info(context.Background(), "Connected to MongoDB")
 }
 
-func InitMongoServer() {
+func main() {
 	// disable gin logging
 	gin.DefaultWriter = io.Discard
 
@@ -71,6 +87,8 @@ func InitMongoServer() {
 	router.Use(CorrelationIdMiddleware())
 
 	router.POST("/user", func(ctx *gin.Context) {
+		mongoLogger.Info(ctx, "Got req for Mongo Server")
+
 		var req InsertUserRequest
 		reqCtx := ctx.Request.Context()
 		correlationId := ctx.GetString(CORRELATION_ID)

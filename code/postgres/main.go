@@ -1,36 +1,48 @@
-package servers
+package main
 
 import (
 	"context"
 	"io"
-	"monitoring-talk/logger"
-	"monitoring-talk/telemetry"
-	"net/http"
-
 	"log"
+	"net/http"
 
 	"github.com/exaring/otelpgx"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	// Alloy
+	ALLOY_ENDPOINT = "localhost:9001"
+	ALLOY_TOKEN    = "G7kLw9xYtQpZrV3mN2sHjXcB8aWfUe5K"
+
+	// Services
+	POSTGRES_SERVICE_NAME = "POSTGRES_SERVICE"
+
+	POSTGRES_URL = "postgres://postgres:postgres@localhost:5432/demo"
+)
+
+type InsertUserRequest struct {
+	Username string `json:"username" binding:"required"`
+}
+
 var (
-	pgLogger      logger.CustomLogger
+	pgLogger      *CustomLogger
 	pgcConn       *pgxpool.Pool
-	pgOtelContext *telemetry.OtelContext
+	pgOtelContext *OtelContext
 )
 
 func init() {
 	var err error
 
 	// init otel
-	pgOtelContext, err = telemetry.NewOtelContext(ALLOY_ENDPOINT, ALLOY_TOKEN, POSTGRES_SERVICE_NAME)
+	pgOtelContext, err = NewOtelContext(ALLOY_ENDPOINT, ALLOY_TOKEN, POSTGRES_SERVICE_NAME)
 	if err != nil {
 		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
 	}
 
 	// init logger
-	pgLogger = logger.NewOtelLogger(pgOtelContext)
+	pgLogger = NewOtelLogger(pgOtelContext)
 	pgLogger.Info(context.Background(), "Initializing postgres server")
 
 	pgxCfg, err := pgxpool.ParseConfig(POSTGRES_URL)
@@ -55,7 +67,7 @@ func init() {
 	pgLogger.Info(context.Background(), "Connected to Postgres")
 }
 
-func InitPostgresServer() {
+func main() {
 	// disable gin logging
 	gin.DefaultWriter = io.Discard
 
@@ -67,6 +79,8 @@ func InitPostgresServer() {
 	router.Use(CorrelationIdMiddleware())
 
 	router.POST("/user", func(ctx *gin.Context) {
+		pgLogger.Info(ctx, "Got req for Postgres service")
+
 		reqCtx := ctx.Request.Context()
 		var req InsertUserRequest
 

@@ -1,2 +1,4 @@
 infra/postgres/data
 infra/postgres/data/*
+infra/mongo/data
+infra/mongo/data/*

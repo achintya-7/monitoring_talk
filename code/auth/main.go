@@ -1,54 +1,66 @@
-package servers
+package main
 
 import (
 	"context"
 	"encoding/json"
 	"io"
 	"log"
-	"monitoring-talk/logger"
-	"monitoring-talk/telemetry"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
-var (
-	authLogger      logger.CustomLogger
-	authOtelContext *telemetry.OtelContext
+const (
+	// Alloy
+	ALLOY_ENDPOINT = "localhost:9001"
+	ALLOY_TOKEN    = "G7kLw9xYtQpZrV3mN2sHjXcB8aWfUe5K"
+
+	// Services
+	AUTH_SERVICE_NAME = "AUTH_SERVICE"
 )
+
+var (
+	authOtelContext *OtelContext
+	authLogger *CustomLogger
+)
+
+type InsertUserRequest struct {
+	Username string `json:"username" binding:"required"`
+}
 
 func init() {
 	var err error
 
+	time.Sleep(1 * time.Second)
+
 	// init otel
-	authOtelContext, err = telemetry.NewOtelContext(ALLOY_ENDPOINT, ALLOY_TOKEN, AUTH_SERVICE_NAME)
+	authOtelContext, err = NewOtelContext(ALLOY_ENDPOINT, ALLOY_TOKEN, AUTH_SERVICE_NAME)
 	if err != nil {
 		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
 	}
 
 	// init logger
-	authLogger = logger.NewOtelLogger(authOtelContext)
+	authLogger = NewOtelLogger(authOtelContext)
 	authLogger.Info(context.Background(), "Starting Auth Server")
 }
 
-func InitAuthServer() {
-	time.Sleep(1 * time.Second)
-
+func main() {
 	// disable gin logging
 	gin.DefaultWriter = io.Discard
 
 	router := gin.Default()
 
 	// attach otel middleware
-	router.Use(otelgin.Middleware(AUTH_SERVICE_NAME))
+	router.Use(authOtelContext.GetGinMiddleware())
 	// attach custom middleware
 	router.Use(CorrelationIdMiddleware())
 
 	router.POST("/auth", func(ctx *gin.Context) {
+		authLogger.Info(ctx, "Got req for Auth Service")
+
 		var req InsertUserRequest
 		correlationId := ctx.GetString(CORRELATION_ID)
 

@@ -1,9 +1,8 @@
-package logger
+package main
 
 import (
 	"context"
 	"fmt"
-	"monitoring-talk/telemetry"
 	"os"
 	"strings"
 	"time"
@@ -25,7 +24,7 @@ const (
 	CORRELATION_ID = "correlation_id"
 )
 
-func NewOtelLogger(otelContext *telemetry.OtelContext) CustomLogger {
+func NewOtelLogger(otelContext *OtelContext) *CustomLogger {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
@@ -35,7 +34,7 @@ func NewOtelLogger(otelContext *telemetry.OtelContext) CustomLogger {
 
 	log.Logger = logger
 
-	return CustomLogger{
+	return &CustomLogger{
 		logger:      logger,
 		serviceName: otelContext.GetServiceName(),
 	}
@@ -65,7 +64,7 @@ func getLogger() zerolog.Logger {
 			}
 			return fmt.Sprintf("[%s]", i)
 		},
-		FieldsExclude: []string{CORRELATION_ID, "Service"},
+		FieldsExclude: []string{CORRELATION_ID, "Service", "span_id", "trace_id"},
 		FormatTimestamp: func(i any) string {
 			return time.Now().Format("[2006-01-02 15:04:05]")
 		},
@@ -81,9 +80,9 @@ func (cl *CustomLogger) Error(ctx context.Context, message string) {
 }
 
 func contextExtractor(ctx context.Context) context.Context {
-	switch ctx.(type) {
+	switch ctx := ctx.(type) {
 	case *gin.Context:
-		return ctx.(*gin.Context).Request.Context()
+		return ctx.Request.Context()
 	case context.Context:
 		return ctx
 	default:
