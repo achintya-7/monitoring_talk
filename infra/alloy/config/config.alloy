@@ -1,6 +1,6 @@
-logging {
-	level = "debug"
-}
+// logging {
+// 	level = "debug"
+// }
 
 faro.receiver "default" {
 	server {
@@ -24,7 +24,7 @@ otelcol.auth.bearer "otlp_token" {
 	token = env("ALLOY_API_KEY")
 }
 
-otelcol.receiver.otlp "logging" {
+otelcol.receiver.otlp "unilog" {
 	grpc {
 		include_metadata = true
 	}
@@ -49,22 +49,27 @@ otelcol.exporter.prometheus "mimir" {
 }
 
 otelcol.exporter.loki "loki" {
-	forward_to = [loki.process.logging.receiver]
+	forward_to = [loki.process.unilog.receiver]
 }
 
 loki.process "faro" {
 	forward_to = [loki.write.loki.receiver]
 }
 
-loki.process "logging" {
+loki.process "unilog" {
 	forward_to = [loki.write.loki.receiver]
 
 	stage.json {
 		expressions = {body = "", severity = "", resources = "", zerolog_attributes = "attributes", zerolog_resources = "resources", zerolog_instrumentation_scope = "instrumentation_scope"}
 	}
 
+	stage.json {
+		source      = "zerolog_attributes"
+		expressions = {caller = "", timestamp = "", correlation_id = "\"correlation_id\"", span_id = "\"span_id\"", trace_id = "\"trace_id\""}
+	}
+
 	stage.labels {
-		values = {level = "severity", caller = "", correlation_id = ""}
+		values = {level = "severity", caller = "", correlation_id = "", span_id = "", trace_id = ""}
 	}
 
 	stage.structured_metadata {

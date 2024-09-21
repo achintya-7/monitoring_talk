@@ -7,7 +7,8 @@ services:
     env_file:
       - './.env'
     volumes:
-      - ./infra/postgres/data:/var/lib/postgresql/data 
+      - ./infra/postgres/data:/var/lib/postgresql/data
+    ports: ['5432:5432'] 
 
   alloy:
     build:
@@ -68,3 +69,12 @@ services:
     container_name: tempo-sidecar-caddy
     env_file:
       - './.env'
+
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    env_file:
+      - './.env'
+    volumes:
+      - ./infra/mongo/data:/data/db
+    ports: ['27017:27017']
